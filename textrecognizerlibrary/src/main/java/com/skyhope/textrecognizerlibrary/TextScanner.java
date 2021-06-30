@@ -71,6 +71,21 @@ public class TextScanner {
         return sTextScanner;
     }
 
+    public List<String> loadSync(Bitmap bitmap) {
+        mBitmap = bitmap;
+        return readSync(mBitmap);
+    }
+
+    public List<String> loadSync(Uri uri) {
+        try {
+            mBitmap = MediaStore.Images.Media.getBitmap(mContext.getContentResolver(), uri);
+            return readSync(mBitmap);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
     public TextScanner load(Uri uri) {
         try {
             mBitmap = MediaStore.Images.Media.getBitmap(mContext.getContentResolver(), uri);
@@ -97,20 +112,40 @@ public class TextScanner {
         }
     }
 
+    private List<String> readSync(Bitmap bitmap) {
+        if (isInitialized()) {
+            Frame imageFrame = new Frame.Builder()
+                    .setBitmap(bitmap)
+                    .build();
+
+            final SparseArray<TextBlock> textBlocks = mTextRecognizer.detect(imageFrame);
+
+            return sortTextBlockSync(textBlocks);
+        }
+        return new ArrayList<>();
+    }
+
+
     private void sortTextBlock(SparseArray<TextBlock> textBlocks) {
         List<TextBlock> myTextBlock = new ArrayList<>();
         for (int i = 0; i < textBlocks.size(); i++) {
             myTextBlock.add(textBlocks.valueAt(i));
         }
 
-        Collections.sort(myTextBlock, new Comparator<TextBlock>() {
-            @Override
-            public int compare(TextBlock textBlock1, TextBlock textBlock2) {
-                return textBlock1.getBoundingBox().top - textBlock2.getBoundingBox().top;
-            }
-        });
+        Collections.sort(myTextBlock, (textBlock1, textBlock2) -> textBlock1.getBoundingBox().top - textBlock2.getBoundingBox().top);
 
         parseText(myTextBlock);
+    }
+
+    private List<String> sortTextBlockSync(SparseArray<TextBlock> textBlocks) {
+        List<TextBlock> myTextBlock = new ArrayList<>();
+        for (int i = 0; i < textBlocks.size(); i++) {
+            myTextBlock.add(textBlocks.valueAt(i));
+        }
+
+        Collections.sort(myTextBlock, (textBlock1, textBlock2) -> textBlock1.getBoundingBox().top - textBlock2.getBoundingBox().top);
+
+        return parseTextSync(myTextBlock);
     }
 
     private void parseText(List<TextBlock> myTextBlock) {
@@ -126,6 +161,20 @@ public class TextScanner {
         if (mCallback != null) {
             mCallback.onGetExtractText(textList);
         }
+    }
+
+
+    private List<String> parseTextSync(List<TextBlock> myTextBlock) {
+        List<String> textList = new ArrayList<>();
+        for (int i = 0; i < myTextBlock.size(); i++) {
+            TextBlock textBlock = myTextBlock.get(i);
+            List<Line> lines = (List<Line>) textBlock.getComponents();
+
+            for (Line line : lines) {
+                textList.add(line.getValue());
+            }
+        }
+        return textList;
     }
 
 
